@@ -6,7 +6,7 @@ The list below highlights the benefits of using HyperShift KubeVirt provider:
 * Strong isolation by separating hosted control planes and guest clusters.
 * Reduce cluster provision time by eliminating baremetal node bootstrapping process.
 ## Cluster Preparation
-P 4.12.0 is running as the underlying base OCP cluster on top of 6 bare metal nodes (3 masters + 3 workers). Required operators and controllers are listed as follows:
+4.12.0 is running as the underlying base OCP cluster on top of 6 bare metal nodes (3 masters + 3 workers). Required operators and controllers are listed as follows:
 * OpenShift Data Foundation (ODF)  using local storage devices
 * OpenShift Virtualization
 * MetalLB
@@ -34,7 +34,7 @@ lvset                         kubernetes.io/no-provisioner            Delete    
 ocs-storagecluster-ceph-rbd   openshift-storage.rbd.csi.ceph.com      Delete          Immediate              true                   17m
 ocs-storagecluster-ceph-rgw   openshift-storage.ceph.rook.io/bucket   Delete          Immediate              false                  21m
 ocs-storagecluster-cephfs     openshift-storage.cephfs.csi.ceph.com   Delete          Immediate              true                   17m
-openshift-storage.noobaa.io   openshift-storage.noobaa.io/obc         Delete          Immediate
+openshift-storage.noobaa.io   openshift-storage.noobaa.io/obc         Delete          Immediate              false                  15m
 ```
 Once ODF is setup, annotate a default storage class for HyperShift to persist VM workers and guest cluster etcd pods:
 ```
@@ -46,7 +46,7 @@ Check if the storage class is labeled as default:
 ocs-storagecluster-ceph-rbd (default)   openshift-storage.rbd.csi.ceph.com      Delete          Immediate              true                   20m
 ```
 #### OpenShift Virtualization
-[OpenShift Virtualization](https://docs.openshift.com/container-platform/4.12/virt/install/installing-virt-web.html) Operator is an add-on to OCP that allows you to run and manage virtual machines alongside containers. HyperShift with the KubeVirt provider allows you to run guest cluster components using KubeVirt virtual machines. Once you installed the operator and created HyperConverged Object, you should be able to see the following output:
+[OpenShift Virtualization](https://docs.openshift.com/container-platform/4.12/virt/install/installing-virt-web.html) Operator is an add-on to OCP that allows you to run and manage virtual machines alongside pods. HyperShift with the KubeVirt provider allows you to run guest cluster components using KubeVirt virtual machines. Once you installed the operator and created HyperConverged Object, you should be able to see the following output:
 ```
 [root@e24-h21-740xd ~]# oc get csv -n openshift-cnv
 NAME                                       DISPLAY                    VERSION   REPLACES                                   PHASE
@@ -261,6 +261,7 @@ clusters    kv-01   4.11.7    kv-01-admin-kubeconfig   Completed   True        F
 ```
 ## Summary
 We went through the detailed steps of installing and configuring necessary operators and controllers to set up HyperShift with the KubeVirt provider in an existing bare metal OCP cluster environment. We also demonstrated how to launch a hosted cluster using the HyperShift command line tool, configuring ingress service and routes and checking the status of the hosted clusters.
+
 ## Future Work
 Future work will cover the topics of:
 * Persistent storage for pod running in the guest cluster
