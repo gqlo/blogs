@@ -259,6 +259,45 @@ NAMESPACE   NAME    VERSION   KUBECONFIG               PROGRESS    AVAILABLE   P
 clusters    kv-00   4.12.0    kv-00-admin-kubeconfig   Completed   True        False         The hosted control plane is available
 clusters    kv-01   4.11.7    kv-01-admin-kubeconfig   Completed   True        False         The hosted control plane is available
 ```
+If we take a closer look, there is a dedicated namespace `clusters-kv-00` being created for the hosted control plane. Under this namespace, we should be able see control plane pods such as etcd and  kubeapi server are running:
+```
+[root@e24-h21-740xd ~]# oc get pod -n clusters-kv-00 | grep 'kube-api\|etcd'
+etcd-0                                                2/2     Running     0          47h
+kube-apiserver-864764b74b-t2tcl                       3/3     Running     0          47h
+```
+There are two virt-launcher pods for the KubeVirt virtual machines since we specified `node-pool-replicas=2`:
+```
+[root@e24-h21-740xd ~]# oc get pod -n clusters-kv-00 | grep 'virt-launcher'
+virt-launcher-kv-00-j45fr-mt5lc                       1/1     Running     0          2d1h
+virt-launcher-kv-00-l7f27-fk9tj                       1/1     Running     0          2d1h
+```
+To check the status of those two VMs:
+```
+[root@e24-h21-740xd ~]# oc get vm -n clusters-kv-00
+NAME          AGE    STATUS    READY
+kv-00-j45fr   2d1h   Running   True
+kv-00-l7f27   2d1h   Running   True
+```
+To examine our guest clusters, we need to have the oc tool pointing to the guest kubeconfig. From OCP’s perspective, these two virtual machines will be the worker nodes:
+```
+[root@e24-h21-740xd hypershift]# oc --kubeconfig kv-00-kubeconfig get nodes
+NAME          STATUS   ROLES    AGE    VERSION
+kv-00-j45fr   Ready    worker   2d1h   v1.25.4+77bec7a
+kv-00-l7f27   Ready    worker   2d1h   v1.25.4+77bec7a
+```
+We should also be able to see that there is a dedicated monitoring and networking stack for each guest cluster:
+```
+[root@e24-h21-740xd hypershift]# oc --kubeconfig kv-00-kubeconfig get pod -A | grep 'prometh\|ovn\|ingress'
+openshift-ingress-canary                           ingress-canary-j4lq4                                     1/1     Running     0              2d1h
+openshift-ingress-canary                           ingress-canary-zd28w                                     1/1     Running     0              2d1h
+openshift-ingress                                  router-default-68df75f88d-dszb2                          1/1     Running     0              2d1h
+openshift-monitoring                               prometheus-adapter-6fd546d669-c2dw6                      1/1     Running     0              2d1h
+openshift-monitoring                               prometheus-k8s-0                                         6/6     Running     0              2d1h
+openshift-monitoring                               prometheus-operator-688459b4f4-45775                     2/2     Running     0              2d1h
+openshift-monitoring                               prometheus-operator-admission-webhook-849b6cd6bf-52rpq   1/1     Running     0              2d1h
+openshift-ovn-kubernetes                           ovnkube-node-4hmgz                                       5/5     Running     4 (2d1h ago)   2d1h
+openshift-ovn-kubernetes                           ovnkube-node-87nk7                                       5/5     Running     0              2d1h
+```
 ## Summary
 We went through the detailed steps of installing and configuring necessary operators and controllers to set up HyperShift with the KubeVirt provider in an existing bare metal OCP cluster environment. We also demonstrated how to launch a hosted cluster using the HyperShift command line tool, configuring ingress service and routes and checking the status of the hosted clusters.
 
