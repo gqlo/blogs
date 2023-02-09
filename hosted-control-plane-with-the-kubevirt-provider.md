@@ -299,7 +299,7 @@ openshift-ovn-kubernetes                           ovnkube-node-4hmgz           
 openshift-ovn-kubernetes                           ovnkube-node-87nk7                                       5/5     Running     0              2d1h
 ```
 ## Summary
-We went through the detailed steps of installing and configuring necessary operators and controllers to set up HyperShift with the KubeVirt provider in an existing bare metal OCP cluster environment. We also demonstrated how to launch a hosted cluster using the HyperShift command line tool, configuring ingress service and routes and checking the status of the hosted clusters.
+We went through the detailed steps of installing and configuring necessary operators and controllers to set up HyperShift with the KubeVirt provider in an existing bare metal OCP cluster environment. We also demonstrated how to launch a hosted cluster using the HyperShift command line tool, configuring ingress service and routes and examined where the hosted control planes pods are running and what components are being placed inside of guest clusters.
 
 ## Future Work
 Future work will cover the topics of:
