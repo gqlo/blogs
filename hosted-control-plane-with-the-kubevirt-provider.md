@@ -1,6 +1,6 @@
 Faster and Flexible OpenShift Clusters, on OpenShift
 ====================================================
-***Hosted Control Planes with OpenShift Virtualization***
+***Hosted Control Planes with the KubeVirt Provider***
 
 ## Introduction
 [Hosted control planes](https://docs.openshift.com/container-platform/4.12/architecture/control-plane.html#hosted-control-planes-overview_control-plane) for Red Hat OpenShift with the KubeVirt provider makes it possible to host OpenShift tenant clusters on bare metal machines at scale. It can be installed on an existing bare metal OpenShift cluster (OCP) environment allowing you to quickly provision multiple guest clusters using KubeVirt virtual machines. The current model allows running hosted control planes and KubeVirt virtual machines on the same underlying base OCP cluster. Unlike the standalone OpenShift cluster where some of the Kubernetes services in the control plane are running as systemd services, the control planes that HyperShift deploy is just another workload which can be scheduled on any available nodes placed in their dedicated namespaces. This post will show the detailed steps of installing HyperShift with the KubeVirt provider on an existing bare metal cluster and configuring the necessary components to launch guest clusters in a matter of minutes.
@@ -9,6 +9,7 @@ The list below highlights the benefits of using HyperShift KubeVirt provider:
 * Enhance resource utilization by packing multiple hosted control planes and hosted clusters in the same underlying bare metal infrastructure.
 * Strong isolation by separating hosted control planes and guest clusters.
 * Reduce cluster provision time by eliminating baremetal node bootstrapping process.
+* Manage multiple different releases under the same base OCP cluster.
 ## Cluster Preparation
 4.12.0 is running as the underlying base OCP cluster on top of 6 bare metal nodes (3 masters + 3 workers). Required operators and controllers are listed as follows:
 * OpenShift Data Foundation (ODF)  using local storage devices
@@ -175,93 +176,38 @@ The binary will be placed under the $PWD directory, move the binary to /usr/loca
 sudo mv $PWD/hypershift /usr/local/bin
 ```
 #### Configure Environment Variables
-The base domain is retrieved from the ingress configuration and the pull secret is needed for pods accessing images from the registry. Make sure to replace the [PULL_SECRET](https://console.redhat.com/openshift/install/pull-secret) variable with a path to your pull secret file:
+The pull secret is needed for pods accessing images from the registry. Make sure to replace the [PULL_SECRET](https://console.redhat.com/openshift/install/pull-secret) variable with a path to your pull secret file:
 ```
 export KUBEVIRT_CLUSTER_NAME=kv-00
-export KUBEVIRT_CLUSTER_NAMESPACE="clusters-${KUBEVIRT_CLUSTER_NAME}"
-export BASE_DOMAIN=$(oc get ingresscontroller -n openshift-ingress-operator default -o jsonpath='{.status.domain}')
-export KUBEVIRT_CLUSTER_BASE_DOMAIN=${KUBEVIRT_CLUSTER_NAME}.${BASE_DOMAIN}
 export PULL_SECRET="/path/to/pull-secret"
 ```
 #### Create HyperShift KubeVirt Hosted Cluster
-Use the following command to create a node pool of 2 workers and the guest cluster [playload version](https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/) can be specified by `--release-image`. MCE 2.2 allows us to launch both 4.11 and 4.12 guest clusters:
+Use the following command to create a node pool of 2 workers and the guest cluster [playload version](https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/4.12.3/release.txt) can be specified by `--release-image`. Starting from 4.12.2, a default ingress passthrough feature is added, we no longer need to create ingress services and routes manually.
 ```
 hypershift create cluster \
 kubevirt \
 --name $KUBEVIRT_CLUSTER_NAME \
---base-domain $BASE_DOMAIN \
 --node-pool-replicas=2 \
 --memory '8Gi' \
 --pull-secret $PULL_SECRET \
---release-image=quay.io/openshift-release-dev/ocp-release@sha256:4c5a7e26d707780be6466ddc9591865beb2e3baa5556432d23e8d57966a2dd18
+--release-image=quay.io/openshift-release-dev/ocp-release@sha256:382f271581b9b907484d552bd145e9a5678e9366330059d31b007f4445d99e36
 ```
 It takes some time for the VMs to be provisioned, you can use the following command to wait until the VM workers reach ready state:
 ```
 oc wait --for=condition=Ready --namespace $KUBEVIRT_CLUSTER_NAMESPACE vm --all --timeout=600s
 ```
-Once the VM workers are ready, we can generate the guest cluster kubeconfig file which is required to retrieve guest cluster ingress NodePort:
+Once the VM workers are ready, we can generate the guest cluster kubeconfig file which is useful when we want to examine the guest cluster.
 ```
 hypershift create kubeconfig --name="$KUBEVIRT_CLUSTER_NAME" > "${KUBEVIRT_CLUSTER_NAME}-kubeconfig"
 ```
-#### Create Ingress Service
-Export the ingress NodePort number to $HTTPS_NODEPORT. Please note that it might take some time for the certificate to be ready:
-```
-export HTTPS_NODEPORT=$(oc --kubeconfig "${KUBEVIRT_CLUSTER_NAME}-kubeconfig" get services -n openshift-ingress router-nodeport-default -o jsonpath='{.spec.ports[?(@.name=="https")].nodePort}')
-```
-Once we have the NodePort number, we can create the ingress service for the guest cluster:
-```
-oc create -f - <<EOF
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: ${KUBEVIRT_CLUSTER_NAME}
-  name: apps-ingress
-  namespace: ${KUBEVIRT_CLUSTER_NAMESPACE}
-spec:
-  internalTrafficPolicy: Cluster
-  ipFamilies:
-  - IPv4
-  ipFamilyPolicy: SingleStack
-  ports:
-  - name: https-443
-    port: 443
-    protocol: TCP
-    targetPort: $HTTPS_NODEPORT
-  selector:
-    kubevirt.io: virt-launcher
-  sessionAffinity: None
-  type: ClusterIP
-EOF
-```
-#### Create Ingress Route
-```
-oc create -f - <<EOF
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  name: ${KUBEVIRT_CLUSTER_NAME}-443
-  namespace: ${KUBEVIRT_CLUSTER_NAMESPACE}
-spec:
-  host: data.apps.$KUBEVIRT_CLUSTER_BASE_DOMAIN
-  wildcardPolicy: Subdomain
-  tls:
-    termination: passthrough
-  port:
-    targetPort: https-443
-  to:
-    kind: Service
-    name: apps-ingress
-    weight: 100
-EOF
-```
 #### Examine The Hosted Cluster
-Once all the operators are deployed successfully, the status of the Available column should be True and the Progress column should be changed to Completed. We created two guest clusters with different releases just to show that It is possible to manage multi-version guest clusters in HyperShift with the KubeVirt provider:
+Once all the operators are deployed successfully, the status of the Available column should be True and the Progress column should be changed to Completed. We created three guest clusters with different releases just to show that it is possible to manage multi-version guest clusters in HyperShift with the KubeVirt provider:
 ```
 [root@e24-h21-740xd hypershift]# oc get hc -A
 NAMESPACE   NAME    VERSION   KUBECONFIG               PROGRESS    AVAILABLE   PROGRESSING   MESSAGE
-clusters    kv-00   4.12.0    kv-00-admin-kubeconfig   Completed   True        False         The hosted control plane is available
-clusters    kv-01   4.11.7    kv-01-admin-kubeconfig   Completed   True        False         The hosted control plane is available
+clusters    kv-00   4.12.2    kv-00-admin-kubeconfig   Completed   True        False         The hosted control plane is available
+clusters    kv-04   4.12.3    kv-04-admin-kubeconfig   Completed   True        False         The hosted control plane is available
+clusters    kv-05   4.12.4    kv-05-admin-kubeconfig   Completed   True        False         The hosted control plane is available
 ```
 If we take a closer look, there is a dedicated namespace `clusters-kv-00` being created for the hosted control plane. Under this namespace, we should be able see control plane pods such as etcd and  kubeapi server are running:
 ```
