@@ -1,11 +1,12 @@
-Faster and Flexible OpenShift Clusters, on OpenShift
+Effortlessly And Efficiently Provision OpenShift Clusters With OpenShift Virtualization
 ====================================================
-***Hosted Control Planes with the KubeVirt Provider***
 
 ## Introduction
 [Hosted control planes](https://docs.openshift.com/container-platform/4.12/architecture/control-plane.html#hosted-control-planes-overview_control-plane) for Red Hat OpenShift with the KubeVirt provider makes it possible to host OpenShift tenant clusters on bare metal machines at scale. It can be installed on an existing bare metal OpenShift cluster (OCP) environment allowing you to quickly provision multiple guest clusters using KubeVirt virtual machines. The current model allows running hosted control planes and KubeVirt virtual machines on the same underlying base OCP cluster. Unlike the standalone OpenShift cluster where some of the Kubernetes services in the control plane are running as systemd services, the control planes that HyperShift deploy is just another workload which can be scheduled on any available nodes placed in their dedicated namespaces. This post will show the detailed steps of installing HyperShift with the KubeVirt provider on an existing bare metal cluster and configuring the necessary components to launch guest clusters in a matter of minutes.
 
 ![](./hypershift.svg)
+
+Please note that the support status of this provider is still in dev preview and it will be officially supported in a future release.
 ## Benefits
 The list below highlights the benefits of using HyperShift KubeVirt provider:
 * Enhance resource utilization by packing multiple hosted control planes and hosted clusters in the same underlying bare metal infrastructure.
@@ -159,8 +160,6 @@ The following sections will take you through the steps of:
 * Build HyperShift Client
 * Configure Environment Variables
 * Create HyperShift KubeVirt Hosted Cluster
-* Create Ingress Service
-* Create Ingress Route
 * Examine Hosted Cluster
 
 #### Build HyperShift Client
@@ -260,4 +259,6 @@ Future work will cover the topics of:
 * Isolate hosted control planes from nodes that running worker VMs
 * Hosted cluster density scale testing
 
+## References
+This blog is published at [Red Hat Hybrid Cloud](https://cloud.redhat.com/blog/effortlessly-and-efficiently-provision-openshift-clusters-with-openshift-virtualization)
 
