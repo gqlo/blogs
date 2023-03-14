@@ -60,7 +60,16 @@ There are many storage options avaible..
 
 ## Network
 
-
+## Hosted Cluster Console
+To access the hosted cluster console, we need to retrieve the kubeadmin password of the hosted cluster (different from the base cluster).
+Use the following commands to generate guest cluster kubeconfig, the kubeadmin password and the console url. Note you may need `sshuttle` to do port forwarding when you are accessing the console from the machine other than the bastion one.
+```
+NAMESPACE="clusters"
+KUBEVIRT_CLUSTER_NAME=kv-00
+hypershift create kubeconfig --name="$KUBEVIRT_CLUSTER_NAME" > "${KUBEVIRT_CLUSTER_NAME}-kubeconfig"
+kubedamin_password=$(oc get secret -n "$NAMESPACE-$CLUSTER_NAME" kubeadmin-password --template='{{.data.password | base64decode}}')
+echo "https://$(oc --kubeconfig=${KUBEVIRT_CLUSTER_NAME}-kubeconfig -n openshift-console get routes console -o=jsonpath='{.spec.host}')"
+```
 
 
 
