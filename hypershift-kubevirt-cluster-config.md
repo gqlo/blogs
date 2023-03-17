@@ -56,8 +56,42 @@ for i in {013..011}; do oc label node worker"$i"-1029p node-role.kubernetes.io/z
 ```
 
 ## Storage
+### Storage Operators
 There are many storage options avaible..
+### Persistent storage within hosted clusters
+Example of configuring storage class and pvcs within the hosted cluster. Note this is only a temporary workaround for testing in 4.12.x
+```
+oc --kubeconfig guest-kubeconfig create -f - <<EOF
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: kv-00-sc
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: csi.kubevirt.io
+parameters:
+  infraStorageClassName: ocs-storagecluster-ceph-rbd
+  bus: scsi
+EOF
+```
 
+```
+oc --kubeconfig guest-kubeconfig create -f - <<EOF
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kv-00
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: kv-00-sc
+  resources:
+    requests:
+      storage: 5Gi
+  volumeMode: Filesystem
+EOF
+```
+Once the storage class and pvc is created, the corresponding pv/pvcs will be mirroed into the infra/mgmt cluster.
 ## Network
 
 ## Hosted Cluster Console
