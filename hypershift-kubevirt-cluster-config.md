@@ -92,6 +92,18 @@ spec:
 EOF
 ```
 Once the storage class and pvc is created, the corresponding pv/pvcs will be mirroed into the infra/mgmt cluster.
+### etcd
+By default, hypershift operator is configured to capture telemetry metircs, edit the hypershift operator deployment object to set METRICS_SET value to `All`
+```
+oc edit deployment.apps/operator -n hypershift
+```
+We might have multile hosted clusters running on top of the manangement cluster, it might be easier to manange all the metrics using the mgmt promethus. To do so, we can edit the hypershift operator object to enable ocp cluster monitoring.
+```
+oc edit deployment.apps/operator -n hypershift
+--enable-ocp-cluster-monitoring=true
+```
+This will add label `openshift.io/cluster-monitoring=true` to all hosted cluster namespace, metrics under theose namespaces will be avaiable in mgmt promethus database.
+Note that a bug fix was merge by this [PR](https://github.com/openshift/hypershift/pull/2085), you might not be able to see etcd server metrics without this fix. We verified the availability of etcd server metrics on 4.12.8.
 ## Network
 
 ## Hosted Cluster Console
@@ -101,7 +113,7 @@ Use the following commands to generate guest cluster kubeconfig, the kubeadmin p
 NAMESPACE="clusters"
 KUBEVIRT_CLUSTER_NAME=kv-00
 hypershift create kubeconfig --name="$KUBEVIRT_CLUSTER_NAME" > "${KUBEVIRT_CLUSTER_NAME}-kubeconfig"
-kubedamin_password=$(oc get secret -n "$NAMESPACE-$CLUSTER_NAME" kubeadmin-password --template='{{.data.password | base64decode}}')
+kubedamin_password=$(oc get secret -n "$NAMESPACE-$KUBEVIRT_CLUSTER_NAME" kubeadmin-password --template='{{.data.password | base64decode}}')
 echo "https://$(oc --kubeconfig=${KUBEVIRT_CLUSTER_NAME}-kubeconfig -n openshift-console get routes console -o=jsonpath='{.spec.host}')"
 ```
 
