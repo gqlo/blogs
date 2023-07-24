@@ -48,7 +48,7 @@ This will place hosted control planes pods on nodes 011-013 and the virt-laucher
 #### Zone Config
 To make the ectd pods span across 3 different nodes when `HighlyAvaiable` param is passed, we need to add the zone label:
 ```
-for i in {013..011}; do oc label node worker011-1029p topology.kubernetes.io/zone=zone-${i:2:1}=
+for i in {013..011}; do oc label node worker"$i"-1029p topology.kubernetes.io/zone=zone-${i:2:1};done
 ```
 Label the coressponding node with its role just to make more visible when we examine them:
 ```
@@ -104,6 +104,67 @@ oc edit deployment.apps/operator -n hypershift
 ```
 This will add label `openshift.io/cluster-monitoring=true` to all hosted cluster namespace, metrics under theose namespaces will be avaiable in mgmt promethus database.
 Note that a bug fix was merge by this [PR](https://github.com/openshift/hypershift/pull/2085), you might not be able to see etcd server metrics without this fix. We verified the availability of etcd server metrics on 4.12.8.
+
+### Promethus
+Prometheus stores metrics on ephemeral storage by default. All metrics data will be lost once the Prometheus pods are restarted or terminated. The following steps shows how to mannually provision pvs and use configMap for promethus to consume the manual storage class:
+
+Format the disk and mount it:
+```
+mkfs.ext4 /dev/nvme0n1 && sudo mkdir /var/promdb && sudo mount /dev/nvme0n1 /var/promdb
+```
+Create pvs on both machines:
+```
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: worker027-1029p
+spec:
+  capacity:
+    storage: 894Gi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: promdb-pv
+  local:
+    path: /var/promdb
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - worker027-1029p
+```
+Label both nodes so scheduler knows which node to place promethus pods:
+```
+oc label node worker026-1029p worker027-1029p nodePool=promdb
+oc label node worker026-1029p worker027-1029p node-role.kubernetes.io/promdb=
+```
+Create configMap
+
+```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |
+    prometheusK8s:
+      retention: 36w
+      nodeSelector:
+        nodePool: promdb
+      volumeClaimTemplate:
+        metadata:
+          name: prometheusdb
+        spec:
+          storageClassName: promdb-pv
+          resources:
+            requests:
+              storage: 894Gi
+```
 ## Network
 
 ## Hosted Cluster Console
@@ -116,7 +177,6 @@ hypershift create kubeconfig --name="$KUBEVIRT_CLUSTER_NAME" > "${KUBEVIRT_CLUST
 kubedamin_password=$(oc get secret -n "$NAMESPACE-$KUBEVIRT_CLUSTER_NAME" kubeadmin-password --template='{{.data.password | base64decode}}')
 echo "https://$(oc --kubeconfig=${KUBEVIRT_CLUSTER_NAME}-kubeconfig -n openshift-console get routes console -o=jsonpath='{.spec.host}')"
 ```
-
 
 
 
