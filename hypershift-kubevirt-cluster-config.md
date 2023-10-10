@@ -54,6 +54,8 @@ Label the coressponding node with its role just to make more visible when we exa
 ```
 for i in {013..011}; do oc label node worker"$i"-1029p node-role.kubernetes.io/zone-${i:2:1}=;done
 ```
+#### Guest cluster support matrix
+oc extract configmap/supported-versions -n hypershift --to=- | jq
 
 ## Storage
 ### Storage Operators
@@ -92,15 +94,15 @@ spec:
 EOF
 ```
 Once the storage class and pvc is created, the corresponding pv/pvcs will be mirroed into the infra/mgmt cluster.
+
 ### etcd
 By default, hypershift operator is configured to capture telemetry metircs, edit the hypershift operator deployment object to set METRICS_SET value to `All`
 ```
-oc edit deployment.apps/operator -n hypershift
+oc patch deployment.apps/operator -n hypershift --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/env/2/value", "value": "All"}]'
 ```
 We might have multile hosted clusters running on top of the manangement cluster, it might be easier to manange all the metrics using the mgmt promethus. To do so, we can edit the hypershift operator object to enable ocp cluster monitoring.
 ```
-oc edit deployment.apps/operator -n hypershift
---enable-ocp-cluster-monitoring=true
+oc patch deployment.apps/operator -n hypershift --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/args", "value": ["run", "--namespace=$(MY_NAMESPACE)", "--pod-name=$(MY_NAME)", "--metrics-addr=:9000", "--enable-ocp-cluster-monitoring=true", "--enable-ci-debug-output=false", "--private-platform=None", "--cert-dir=/var/run/secrets/serving-cert", "--enable-uwm-telemetry-remote-write"]}]'
 ```
 This will add label `openshift.io/cluster-monitoring=true` to all hosted cluster namespace, metrics under theose namespaces will be avaiable in mgmt promethus database.
 Note that a bug fix was merge by this [PR](https://github.com/openshift/hypershift/pull/2085), you might not be able to see etcd server metrics without this fix. We verified the availability of etcd server metrics on 4.12.8.
