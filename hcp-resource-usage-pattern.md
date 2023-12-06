@@ -65,14 +65,14 @@ To meet the latency requirements of ETCD, [LVM](https://docs.openshift.com/conta
 
 ## Methodology
 ### Overview
-CPU, Memory and ETCD storage utilization measurements were conducted for hosted clusters that were scaled across multiple dimensions, particularly focusing on the increase in KubeAPI load. To generate this API load, Kube-burner was used. This tool works by creating a multitude of objects within a namespace and then continuously churning them - that is, deleting and recreating them continuously over a period of 15 minutes.
+CPU, Memory and ETCD storage utilization measurements were conducted for hosted clusters that were scaled across multiple dimensions, particularly focusing on the increase in KubeAPI load. To generate this API load, [Kube-burner](https://github.com/cloud-bulldozer/kube-burner) was used. This tool works by creating a multitude of objects within a namespace and then continuously churning them - that is, deleting and recreating them continuously over a period of 15 minutes.
 
 An idle cluster, where no object creation occurs, served as the baseline for comparison. From this baseline, the experiment progressively increased the workload by creating 2, 4, and 6 namespaces, introducing a 3-minute delay between each increment. This process continued up to a total of 100 namespaces. During these 15-minute intervals, both the maximum and average data points were extracted.
 
 This approach allowed for a detailed analysis of how the API rate correlates with resource use, providing insights into the growth relationship between increased API rate and the corresponding demand on cluster resources. This data is useful for understanding the scalability and performance characteristics of the hosted clusters under high API burst.
 
 ### Workload Profile
-The workload profile is a “cluster density” test, detailed workload used to provide this example load data can be described as follows:
+The workload profile is a “[cluster density](https://cloud-bulldozer.github.io/kube-burner/v1.7.9/ocp/#cluster-density-v2)” test, detailed workload used to provide this example load data can be described as follows:
 * The image stream and build components were removed, to focus the utilization measurements on API/control-plane stress
 * The workload creates a number of objects (configmaps, secrets, services, replicasets, deployments, routes, network policies) + 10 pods per namespace, and ramps up each iteration until 100 namespaces are created (i.e. 1,000 pods per hosted cluster)
 * The “churn” value is set to 100% to cause additional API stress with continuous object deletion and creation
@@ -144,7 +144,7 @@ The workload profile being discussed is entirely simulated using the Kube-burner
 ## Summary
 This blog provides a detailed analysis of resource usage patterns in hosted control planes, establishing the relationship between API rate and CPU/memory utilization, and offers insights on node capacity to aid customers in making informed decisions.
 
-For general sizing guidance regarding request size, pod limits and more please check out host control plane sizing guidance documentation.
+For general sizing guidance regarding request size, pod limits and more please check out host control plane [sizing guidance documentation](https://access.redhat.com/documentation/en-us/red_hat_advanced_cluster_management_for_kubernetes/2.9/html/clusters/cluster_mce_overview#hosted-sizing-guidance).
 
 ## Future Work
 In our upcoming work, we aim to focus on deploying realistic workloads, potentially using ArgoCD, to better simulate real-world scenarios and enhance our understanding of HCP resource usage patterns.
