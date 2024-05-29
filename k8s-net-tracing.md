@@ -1,7 +1,7 @@
 A close look at k8s networking model
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-05-27 10:00 AM
+**Last Updated:** 2024-05-29 12:29 PM
 
 ## Introduction
 
