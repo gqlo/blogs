@@ -1,10 +1,13 @@
 Correlating QPS Rate with Resource Utilization in Self-Managed Hosted Control Planes
 ====================================================
 
+## Last Updated
+**Last Updated:** 2024-05-27 10:00 AM
+
 ## Introduction
 The general availability of [self-managed hosted control planes](https://www.redhat.com/en/blog/unlocking-new-possibilities-general-availability-hosted-control-planes-self-managed-red-hat-openshift) (HCP) with OpenShift Virtualization (KubeVirt) is an exciting milestone. Yet, the true test lies in system performance and scalability, which are both crucial factors that determine success. Understanding and pushing these limits is essential for making informed decisions. This blog offers a comprehensive analysis and general sizing insights for consolidating existing bare metal resources using self-managed HCP with OpenShift Virtualization Provider. It delves into the resource usage patterns of the HCP, examining its relationship with KubeAPIServer QPS rate. Through various experiments, we established the linear regression model between the KubeAPI Server QPS rate and CPU/Memory/ETCD storage utilization, providing valuable insights for efficient resource consolidation and node capacity planning.
 
-[](./hypershift.svg)
+[](/media/hypershift.svg)
 ## Cluster Configuration
 ```
 Cluster
@@ -102,7 +105,7 @@ The `solid` line in the charts represents a scaling formula using linear regress
 
 #### Avg QPS vs. Avg CPU
 <p align="center">
-  <img src="./hcp-resource-usage/avg_cpu.svg">
+  <img src="/media/avg_cpu.svg">
 </p>
 
 Consider the desired hosted cluster API load when determining the amount of cpu resources that should be available for bursting. The plot above shows the linear relationship between average CPU utilization of all HCP pods and average QPS rate during each run.
@@ -115,26 +118,26 @@ The example utilization scaling above is based on the average CPU usage of each 
 
 #### Max QPS vs. Max CPU
 <p align="center">
-  <img src="./hcp-resource-usage/max_cpu.svg">
+  <img src="/media/max_cpu.svg">
 </p>
 
 Modeling the relationship between maximum CPU utilization of HCP pods and the maximum QPS rate can be tricky due to periodical CPU spikes from events like catalog pod dumps, which aren't directly triggered by QPS bursts. Despite this, the linear regression line for max CPU consumption has a coefficient of determination value of 0.931. Although slightly lower, it still provides a solid fit and reliable estimates for maximum CPU consumption during QPS bursts.
 
 #### Avg QPS vs. Avg Memory
 <p align="center">
-  <img src="./hcp-resource-usage/avg_mem.svg">
+  <img src="/media/avg_mem.svg">
 
 The default memory request for each hosted control plane is approximately 18 GiB. Observations show that hosted control plane pods typically consume around 15 GiB of RAM at an average QPS rate of 1000. This generous memory allocation for requests likely aims to prevent Out Of Memory (OOM) conditions.
 
 #### Max QPS vs. Max Memory
 <p align="center">
-  <img src="./hcp-resource-usage/max_mem.svg">
+  <img src="/media/max_mem.svg">
 
 Maximum QPS (Queries Per Second) rate versus maximum memory utilization in the hosted control plane pods follows a trend similar to that observed in the average QPS rate plot. Even when the QPS rate spiked to 2000, there was no significant increase in the memory consumption of the hosted control plane pods. This indicates that the memory utilization has been fairly consistent, even under conditions of high query load.
 
 ### ETCD DB Scaling
 <p align="center">
-  <img src="./hcp-resource-usage/etcd_db.svg">
+  <img src="/media/etcd_db.svg">
 
 The ETCD database size expands with the increasing number of pods and related objects such as configmaps and secrets. Under the previously described workload profile, the linear regression line indicates that the database could remain within the default 8 GiB PVC size limit until it reaches roughly 11k pods and associated objects without defragmentation.
 

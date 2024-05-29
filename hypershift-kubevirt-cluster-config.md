@@ -1,5 +1,8 @@
 HyperShift with the KubeVirt provider Cluster Configuration
 ===========================================================
+## Last Updated
+**Last Updated:** 2024-05-27 10:00 AM
+
 ## Introduction
 This document covers some detailed cluster configurations that you may find useful in a production environment.
 
