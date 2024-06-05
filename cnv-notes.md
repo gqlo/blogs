@@ -1,5 +1,8 @@
 CNV related notes
 ===========================================================
+## Last Updated
+**Last Updated:** 2024-06-05 15:57 PM
+
 ## Introduction
 Some notes on CNV templates and related configuration
 
@@ -75,4 +78,4 @@ C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp
 
 
 
-**Last Updated:** 2024-05-29 12:29 PM
+**Last Updated:** 2024-06-05 15:57 PM
