@@ -1,17 +1,18 @@
 Understanding Kernel /proc/diskstats 
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-11 12:23 PM
+**Last Updated:** 2024-06-11 12:26 PM
 
 ## Introduction
 proc virtual filesystem contains a hierarchy of specical files that represent the current state of the kernel, running processes and hardware details. Disk I/O related statistics exposed by Promethues come from the kernel raw stats [/proc/diskstats](https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst). I did a few expirements using dd utility to understand how kernel counts a write/read requests to the actual device.
-## 
+## stats field 
 I have a NVMe disk on this machine and root fielsystem installed on a seperate disk. So it is pretty isolated, we should get fairly accurate measurement without any nosie.
 ```
 cat /proc/diskstats  | grep nvme
  259       0 nvme0n1 740953 0 10085328 22982 29145 679961 5672848 1955 0 42097 24938 0 0 0 0
 ```
 The first 3 fields are used for device identification (major, minior device number and the device name). To measure how writes are counted, we are interested in 8th and 9th fileds which coressponding to "number of writes and mereged completed". I wrotea adhoc script using dd to write directly to the block device.
+## dd script
 ```
 #! /bin/bash
 bs=4k
@@ -25,7 +26,7 @@ for ((c=1; c<=128; c=c*2)); do
    echo "$((c * bs_num))k, $curr_write, $curr_wr_mreged, $((curr_write - prev_writes)), $((curr_wr_mreged - prev_wr_mreged))" 
 done
 ```
-
+## Analysis
 As we can see from the stats below, for any block size less or equal than 128k, the kernel is able to complete the write in a single request.
 ```
 written, merged, write-diff, merged-diff
@@ -44,4 +45,3 @@ From the merged diff field, we can see that for any block size greater than 4k, 
 cat /sys/block/nvme0n1/queue/max_hw_sectors_kb
 128
 ```
- 
