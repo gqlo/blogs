@@ -2,7 +2,7 @@ Correlating QPS Rate with Resource Utilization in Self-Managed Hosted Control Pl
 ====================================================
 
 ## Last Updated
-**Last Updated:** 2024-06-10 10:48 AM
+**Last Updated:** 2024-06-11 12:23 PM
 
 ## Introduction
 The general availability of [self-managed hosted control planes](https://www.redhat.com/en/blog/unlocking-new-possibilities-general-availability-hosted-control-planes-self-managed-red-hat-openshift) (HCP) with OpenShift Virtualization (KubeVirt) is an exciting milestone. Yet, the true test lies in system performance and scalability, which are both crucial factors that determine success. Understanding and pushing these limits is essential for making informed decisions. This blog offers a comprehensive analysis and general sizing insights for consolidating existing bare metal resources using self-managed HCP with OpenShift Virtualization Provider. It delves into the resource usage patterns of the HCP, examining its relationship with KubeAPIServer QPS rate. Through various experiments, we established the linear regression model between the KubeAPI Server QPS rate and CPU/Memory/ETCD storage utilization, providing valuable insights for efficient resource consolidation and node capacity planning.
