@@ -1,7 +1,7 @@
 A close look at k8s networking model
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-11 12:26 PM
+**Last Updated:** 2024-06-18 11:10 AM
 
 ## Introduction
 This document covers the detailed tracing of how k8s networking model works in a single node openshift cluster environment.
@@ -219,4 +219,67 @@ crictl inspectp 6a0f2d307f4fa4af097705a652a3abf5ae9042d6209bf533e4d73d5d66610475
           },
           {
 ```
-We are only interested in the network namespace so later we can enter that namespace find the network interface of that particular container.
+We are only interested in the network namespace so later we can enter that namespace find the network interface of that particular container. From the output above, we found the network namespace of that particular container, we can enter that namespace by:
+```
+nsenter --net=/host//var/run/netns/6a52c837-2ff1-4832-aa01-055d41d95b3d
+```
+To confirm we are in the right place:
+```
+[root@52-54-00-a7-93-9c /]# ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: eth0@if106: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1400 qdisc noqueue state UP group default 
+    link/ether 0a:58:0a:80:00:51 brd ff:ff:ff:ff:ff:ff link-netns 4a15dff6-6f1d-421f-8599-1b8b9f62ede4
+    inet 10.128.0.81/23 brd 10.128.1.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::858:aff:fe80:51/64 scope link 
+       valid_lft forever preferred_lft forever
+```
+After confirmed that we are in the right place, let's start a TCP dump session listening to the particular TCP port 8080:
+```
+tcpdump -i eth0 -nn tcp port 8080
+dropped privs to tcpdump
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+```
+then we can curl the service endpoint from the host:
+```
+curl -L -k httpd-ex-git-demo-sno.apps.sno.example.com
+```
+Here is the full tcpdump within the container:
+```
+tcpdump -i eth0 -nn tcp port 8080
+dropped privs to tcpdump
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+1.  06:43:20.251037 IP 10.128.0.2.58884 > 10.128.0.81.8080: Flags [S], seq 652481145, win 65280, options [mss 1360,sackOK,TS val 899985808 ecr 0,nop,wscale 7], length 0
+2.  06:43:20.251101 IP 10.128.0.81.8080 > 10.128.0.2.58884: Flags [S.], seq 440466640, ack 652481146, win 64704, options [mss 1360,sackOK,TS val 1638289445 ecr 899985808,nop,wscale 7], length 0
+3.  06:43:20.251576 IP 10.128.0.2.58884 > 10.128.0.81.8080: Flags [.], ack 1, win 510, options [nop,nop,TS val 899985809 ecr 1638289445], length 0
+4.  06:43:20.251676 IP 10.128.0.2.58884 > 10.128.0.81.8080: Flags [P.], seq 1:339, ack 1, win 510, options [nop,nop,TS val 899985809 ecr 1638289445], length 338: HTTP: GET / HTTP/1.1
+5.  06:43:20.251697 IP 10.128.0.81.8080 > 10.128.0.2.58884: Flags [.], ack 339, win 503, options [nop,nop,TS val 1638289446 ecr 899985809], length 0
+6.  06:43:20.276392 IP 10.128.0.81.8080 > 10.128.0.2.58884: Flags [P.], seq 1:295, ack 339, win 503, options [nop,nop,TS val 1638289470 ecr 899985809], length 294: HTTP: HTTP/1.1 200 OK
+7.  06:43:20.276517 IP 10.128.0.2.58884 > 10.128.0.81.8080: Flags [.], ack 295, win 508, options [nop,nop,TS val 899985834 ecr 1638289470], length 0
+8.  06:43:25.280762 IP 10.128.0.81.8080 > 10.128.0.2.58884: Flags [F.], seq 295, ack 339, win 503, options [nop,nop,TS val 1638294475 ecr 899985834], length 0
+9.  06:43:25.280915 IP 10.128.0.2.58884 > 10.128.0.81.8080: Flags [F.], seq 339, ack 296, win 508, options [nop,nop,TS val 899990839 ecr 1638294475], length 0
+10. 06:43:25.280946 IP 10.128.0.81.8080 > 10.128.0.2.58884: Flags [.], ack 340, win 503, options [nop,nop,TS val 1638294475 ecr 899990839], length 0
+```
+This tcpdump demonstrates a perfect example of TCP [3 way Handshake](https://www.geeksforgeeks.org/tcp-3-way-handshake-process/) and how HTTP request is handled. See a [list of tcpdump flags](https://amits-notes.readthedocs.io/en/latest/networking/tcpdump.html) and its meaning. 
+1. Client send SYN to establish communication 
+2. SYN + ACK response from server 
+3. Client ACK the reliable connection is established. 
+4. HTTP GET request is sent from client
+5. Server ACK the HTTP GET request 
+6. HTTP Response 200 OK reponse sent from server
+7. Client ACK the HTTP response 
+8. FIN indicates server wants to terminate the connection 
+9. Client response to terminate the connection 
+10. Server send ACK reponse to complete the connection.
+
+But we are curling service endpoint which has the IP of "192.168.122.237", apparentlly there is something in between. So what is this IP "10.128.0.2". Let's find it out.
+
+
+
