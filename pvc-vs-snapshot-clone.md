@@ -1,7 +1,7 @@
 Understanding the difference pvc/snapshot clone in ceph 
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-18 11:10 AM
+**Last Updated:** 2024-06-18 11:30 AM
 
 ## Introduction
 Cloning a volume via pvc can be quite different compared to cloning from a snapshot. Let's take a closer look at the ceph backend and see what are some of the interesting differences out there. 

@@ -1,7 +1,7 @@
 Understanding Kernel /proc/diskstats 
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-18 11:10 AM
+**Last Updated:** 2024-06-18 11:30 AM
 
 ## Introduction
 proc virtual filesystem contains a hierarchy of specical files that represent the current state of the kernel, running processes and hardware details. Disk I/O related statistics exposed by Promethues come from the kernel raw stats [/proc/diskstats](https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst). I did a few expirements using dd utility to understand how kernel counts a write/read requests to the actual device.
@@ -44,4 +44,9 @@ From the merged diff field, we can see that for any block size greater than 4k, 
 ```
 cat /sys/block/nvme0n1/queue/max_hw_sectors_kb
 128
+```
+Whereas in ceph, the max_hw_sectors_kb size is set to be 4096K, any data size that's less than that will be counted as one request in ceph metrics.
+```
+cat /sys/block/rbd0/queue/max_hw_sectors_kb
+4096
 ```
