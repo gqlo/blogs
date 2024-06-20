@@ -1,7 +1,7 @@
 Understanding the difference pvc/snapshot clone in ceph 
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-20 10:16 AM
+**Last Updated:** 2024-06-20 11:03 AM
 
 ## Introduction
 Cloning a volume via pvc can be quite different compared to cloning from a snapshot. Let's take a closer look at the ceph backend and see what are some of the interesting differences out there. 
@@ -233,10 +233,38 @@ After 100 VMs creation
 sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool 
 ocs-storagecluster-cephblockpool                        2  256   19 GiB    5.90k   56 GiB   0.09     21 TiB
 ```
-We see that the total number of objects increased from 5.27k to 5.90k, However, the total storage ultilization is not changed, this is probably because ceph was just creating references point back to the parent image. Since there is a soft limit of 250 clones before flattening happens, let's try cloning > 250 images and monitor how the storage ultilization of that particular pool changes. When the number clones is at 252, we see the storage ultilization increase by 16GiB which indicates falttening process indeed happened.
+We see that the total number of objects increased from 5.27k to 5.90k, However, the total storage ultilization is not changed, this is probably because ceph was just creating references point back to the parent image. Since there is a soft limit of 250 clones before flattening happens, let's try cloning > 250 images and monitor how the storage ultilization of that particular pool changes. When the number clones is at 252, we see the storage ultilization increase by 16GiB which indicates falttening process indeed happened to some degree.
 
 ```
 sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool
 ocs-storagecluster-cephblockpool                        2  256   35 GiB   11.18k   81 GiB   0.12     21 TiB
 ``` 
+Let's also take a look at how snapshot cloning different from volume cloning in terms of storage space ultilization. I have created 249 snapshot clones, the storage space is the same as before:
+```
+sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool
+ocs-storagecluster-cephblockpool                        2  256   19 GiB    6.20k   56 GiB   0.09     21 TiB
+```
+Then I created 496 snapshot clones, the storage ultilization seems to stays the same which makes me think the soft limit 250 is not applied to snapshot clone.
+```
+ ceph df | grep ocs-storagecluster-cephblockpool
+ocs-storagecluster-cephblockpool                        2  256   19 GiB    6.63k   56 GiB   0.09     21 TiB
+
+``
+Let's try a snapshot clone of 512, the storage ultilization is still the same, cloning process was fairly quickly, this makes sense since it was just copying references:
+```
+sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool 
+ocs-storagecluster-cephblockpool                        2  256   19 GiB    7.25k   56 GiB   0.09     21 TiB
+```
+
+With snapshot clone of 515, storage ultilization stays the same:
+```
+sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool 
+ocs-storagecluster-cephblockpool                        2  256   19 GiB    7.26k   56 GiB   0.09     21 TiB
+```
+With snapshot clone of 1024, storage ultilization stays the same, looks like the the limit for snapshot cloning is set at much higher bar.
+```
+sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool 
+ocs-storagecluster-cephblockpool                        2  256   19 GiB    9.30k   56 GiB   0.09     21 TiB
+```
+
 
