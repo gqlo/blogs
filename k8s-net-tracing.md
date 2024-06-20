@@ -1,7 +1,7 @@
 A close look at k8s networking model
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-20 13:26 PM
+**Last Updated:** 2024-06-20 13:29 PM
 
 ## Introduction
 This document covers the detailed tracing of how k8s networking model works in a single node openshift cluster environment.

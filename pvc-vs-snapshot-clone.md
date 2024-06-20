@@ -1,7 +1,7 @@
 Understanding the difference pvc/snapshot clone in ceph 
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-20 13:26 PM
+**Last Updated:** 2024-06-20 13:29 PM
 
 ## Introduction
 Cloning a volume via pvc can be quite different compared to cloning from a snapshot. Let's take a closer look at the ceph backend and see what are some of the interesting differences out there. 
@@ -98,8 +98,8 @@ rbd image 'csi-vol-6ea3447e-0e75-4dd3-9cba-5fee81a7b0b2':
         access_timestamp: Sat Jun  8 01:43:53 2024
         modify_timestamp: Sat Jun  8 01:43:53 2024
 ```
+And for the root-1's image, it doesn't have a tmp suffix, and we notice that it has a parent tag and its parent is the volume with temp suffix.
 ```
-And root-1's image, the image that doesn't have a tmp suffix, and we notice that it has a parent tag and its parent is the volume with temp suffix.
 rbd info ocs-storagecluster-cephblockpool/csi-vol-73f44909-a673-4300-bf02-97c044b51fa0
 rbd image 'csi-vol-73f44909-a673-4300-bf02-97c044b51fa0':
         size 21 GiB in 5376 objects
