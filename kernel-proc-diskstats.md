@@ -1,7 +1,7 @@
 Understanding Kernel /proc/diskstats 
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-18 11:30 AM
+**Last Updated:** 2024-06-20 10:16 AM
 
 ## Introduction
 proc virtual filesystem contains a hierarchy of specical files that represent the current state of the kernel, running processes and hardware details. Disk I/O related statistics exposed by Promethues come from the kernel raw stats [/proc/diskstats](https://www.kernel.org/doc/Documentation/admin-guide/iostats.rst). I did a few expirements using dd utility to understand how kernel counts a write/read requests to the actual device.
