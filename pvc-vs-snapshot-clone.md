@@ -1,7 +1,7 @@
 Understanding the difference pvc/snapshot clone in ceph 
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-20 11:03 AM
+**Last Updated:** 2024-06-20 13:26 PM
 
 ## Introduction
 Cloning a volume via pvc can be quite different compared to cloning from a snapshot. Let's take a closer look at the ceph backend and see what are some of the interesting differences out there. 
@@ -33,18 +33,17 @@ oc get pvc | grep parent
 rhel9-parent   Bound    pvc-dddbe126-bf25-4441-a418-effa3a2bf794   21Gi       RWX            ocs-storagecluster-ceph-rbd-virtualization   6d5h
 ```
 
-When describing the dv object, we should notice that the source is coming from a http where the qcow2 image is served by a Python HTTP server.
+When describing the dv object, we notice that the source is coming from a URL source where the qcow2 image is served by a Python HTTP server I am running on another machine.
 ```
   source:                                         
     http:                                         
       url: http://10.16.29.214:8080/rhel9.4.qcow2
 ```
 
-Then we can create a VM by cloning from this pvc. For this VM, I attached two disks: data disk and root disk:
+Then we can create a VM by cloning from this pvc. 
 
 ```
-oc get dv | grep "\-1"
-data-1         Succeeded   100.0%                83m
+oc get dv
 root-1         Succeeded   100.0%                83m
 ```
 describing root-1, we can see that, this root disk is cloning directly from rhel9-parent pvc.
@@ -59,21 +58,7 @@ describing root-1, we can see that, this root disk is cloning directly from rhel
       Name:       rhel9-parent
       Namespace:  default
 ```
-describing data-1, we get:
-```
-Spec:
-  Pvc:
-    Access Modes:
-      ReadWriteMany
-    Resources:
-      Requests:
-        Storage:         50Gi
-    Storage Class Name:  ocs-storagecluster-ceph-rbd-virtualization
-    Volume Mode:         Block
-  Source:
-    Blank:
-```
-6 snapshots created for os images and one rdb volume for db-noobaa database:
+We get into the ceph backend, we see that there are already 6 snapshots created for os images and one rdb volume for db-noobaa database. We can simply ignore those volumes.
 ```
 sh-5.1$ rbd ls ocs-storagecluster-cephblockpool         
 csi-snap-056e20e6-2bd8-4f85-aaed-e60febdfe6ed
@@ -85,18 +70,18 @@ csi-snap-cdee74a1-d0d7-4949-b65e-d2bfd7c911e1
 csi-vol-3e051c30-9ece-4f15-bf70-ac4a05abc201
 ```
 
-Let's now figure out the image id of all those volumes so we can go to the ceph backend and poke around and see how they are actually residing in ceph cluster. The image id is stored in persistent volume object and here are the image IDs and its corresponding volumes:
+To figure out the image id of all those volumes, we can go to the ceph backend and poke around and see how they are actually residing in ceph cluster. The image id is stored in persistent volume object, by describing those PVs,  we can get the image IDs and its corresponding volumes:
 ```
 rhel9-parent: csi-vol-6ea3447e-0e75-4dd3-9cba-5fee81a7b0b2
 root-1: csi-vol-73f44909-a673-4300-bf02-97c044b51fa0
 ```
-The interesting thing is that, whenever we do a clone from PVC, a temp volume will be created:
+The interesting thing is that, whenever we do a clone from PVC, two volumes will be created, one is appended with temp suffix and another one without it.
 ```
 rbd ls ocs-storagecluster-cephblockpool | grep csi-vol-73f44909-a673-4300-bf02-97c044b51fa0
 csi-vol-73f44909-a673-4300-bf02-97c044b51fa0
 csi-vol-73f44909-a673-4300-bf02-97c044b51fa0-temp
 ```
-let's examine the image one by one:
+Examining the image one by one, first start with the image we imported from the URL source. No parent tag which is what we should expect since it's imported directly from the URL source, not clones.
 ```
 rbd info ocs-storagecluster-cephblockpool/csi-vol-6ea3447e-0e75-4dd3-9cba-5fee81a7b0b2
 rbd image 'csi-vol-6ea3447e-0e75-4dd3-9cba-5fee81a7b0b2':
@@ -114,7 +99,7 @@ rbd image 'csi-vol-6ea3447e-0e75-4dd3-9cba-5fee81a7b0b2':
         modify_timestamp: Sat Jun  8 01:43:53 2024
 ```
 ```
-Here we see that root-1's image has a parent which is the temp image.
+And root-1's image, the image that doesn't have a tmp suffix, and we notice that it has a parent tag and its parent is the volume with temp suffix.
 rbd info ocs-storagecluster-cephblockpool/csi-vol-73f44909-a673-4300-bf02-97c044b51fa0
 rbd image 'csi-vol-73f44909-a673-4300-bf02-97c044b51fa0':
         size 21 GiB in 5376 objects
@@ -133,7 +118,7 @@ rbd image 'csi-vol-73f44909-a673-4300-bf02-97c044b51fa0':
         overlap: 21 GiB
 ```
 
-if we look at the temp image, it also has a parent image which is the base image rhel9-parent.
+if we take a look at the temp image, it also has a parent image which is the base image rhel9-parent imported directly from URL source.
 ```
 rbd info ocs-storagecluster-cephblockpool/csi-vol-73f44909-a673-4300-bf02-97c044b51fa0-temp
 rbd image 'csi-vol-73f44909-a673-4300-bf02-97c044b51fa0-temp':
@@ -152,9 +137,10 @@ rbd image 'csi-vol-73f44909-a673-4300-bf02-97c044b51fa0-temp':
         parent: ocs-storagecluster-cephblockpool/csi-vol-6ea3447e-0e75-4dd3-9cba-5fee81a7b0b2@cca6b09b-4808-468c-9df0-cd2f0ad2a64d
         overlap: 21 GiB
 ```
-what ceph did here was to create a temp vlomue clone of the rhel9-parent image and then use that as a parent of the actual vm vloume root-1. The relationship can be describe as : grandparent(rhel9-parent) -> parent(xx-temp) -> child (xx). 
 
-The actual size of each image is identical which makes me think both are a full clone of the grandparent image:
+So what ceph did here was to create a temp vlomue clone of the rhel9-parent image and then use that as a parent of the actual vm vloume root-1. The relationship can be describe as : grandparent(rhel9-parent) -> parent(xx-temp) -> child (xx). 
+
+The actual size of each image is identical which make mes think they are the full clone of the original image, but then later when I take a look at the space ultilization, it made me realized that they are just referencing to the same original image.
 ```
 sh-5.1$ rbd diff ocs-storagecluster-cephblockpool/csi-vol-73f44909-a673-4300-bf02-97c044b51fa0 | awk '{ SUM += $2 } END { print SUM/1024/1024 " MB" }'                                                                                                       
 4377.25 MB
@@ -165,7 +151,7 @@ sh-5.1$ rbd diff ocs-storagecluster-cephblockpool/csi-vol-6ea3447e-0e75-4dd3-9cb
 sh-5.1$ rbd diff ocs-storagecluster-cephblockpool/csi-vol-73f44909-a673-4300-bf02-97c044b51fa0-temp | awk '{ SUM += $2 } END { print SUM/1024/1024 " MB" }'                                                                                            
 4377.25 MB
 ```
-In summary, when we do a PVC clone, there will be a temp volume clone created, this seem to workaround the limit of snapshots since the subsquent snapshots will be created off this unique temp volume.
+So when we do a PVC clone, there will be two volumes created: one with temp suffix and one without, this seem to workaround the limit of snapshots since the subsquent snapshots will be created off this unique temp volume.
 
 ## Snapshot Clone
 A different method was later introduced to clone from a snapshot like this:
@@ -220,6 +206,7 @@ rbd image 'csi-vol-b589183d-78c6-4379-aa7d-f416adfffe66':
 For every subsequent volume clone, it will all point back to the same snapshot image. 
 
 ## Storage Space
+### PVC clone
 Although the terminology used is "volume clone", but when I looked at the disk space usage before and after creating 100 VMs, the difference is only marginal.
 
 Before any VM creation
@@ -233,12 +220,15 @@ After 100 VMs creation
 sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool 
 ocs-storagecluster-cephblockpool                        2  256   19 GiB    5.90k   56 GiB   0.09     21 TiB
 ```
-We see that the total number of objects increased from 5.27k to 5.90k, However, the total storage ultilization is not changed, this is probably because ceph was just creating references point back to the parent image. Since there is a soft limit of 250 clones before flattening happens, let's try cloning > 250 images and monitor how the storage ultilization of that particular pool changes. When the number clones is at 252, we see the storage ultilization increase by 16GiB which indicates falttening process indeed happened to some degree.
+We see that the total number of objects increased from 5.27k to 5.90k, However, the total storage ultilization is not changed, this is probably because ceph was just creating references point back to the parent image. Since there is a soft limit of 250 clones before flattening happens, let's try cloning > 250 images and monitor how the storage ultilization of that particular pool changes. When the number clones is at 252, we see the storage ultilization increase by 16GiB which indicates falttening process indeed happened to some degree. 
 
 ```
 sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool
 ocs-storagecluster-cephblockpool                        2  256   35 GiB   11.18k   81 GiB   0.12     21 TiB
 ``` 
+The interesting is that, when I looped through all the rbd images, including both the temp and non-temp volumes, parent tag still exists, so what's been flattened here is still not so clear, since the parent link is still there.
+
+### Snapshot clone
 Let's also take a look at how snapshot cloning different from volume cloning in terms of storage space ultilization. I have created 249 snapshot clones, the storage space is the same as before:
 ```
 sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool
@@ -261,7 +251,7 @@ With snapshot clone of 515, storage ultilization stays the same:
 sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool 
 ocs-storagecluster-cephblockpool                        2  256   19 GiB    7.26k   56 GiB   0.09     21 TiB
 ```
-With snapshot clone of 1024, storage ultilization stays the same, looks like the the limit for snapshot cloning is set at much higher bar.
+With snapshot clone of 1024, storage ultilization stays the same, looks like the the limit for snapshot cloning is set at much higher bar, at least we haven't hit the soft limit at 1024 snapshots clones.
 ```
 sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool 
 ocs-storagecluster-cephblockpool                        2  256   19 GiB    9.30k   56 GiB   0.09     21 TiB
