@@ -1,10 +1,10 @@
 A close look at k8s networking model
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-20 15:03 PM
+**Last Updated:** 2024-06-25 13:00 PM
 
 ## Introduction
-This document covers the detailed tracing of how k8s networking model works in a single node openshift cluster environment.
+This document covers the detailed data flow from a service endpoint request down to the pod network interface. It includes the detailed tracing of how packet flows within k8s environment where OVN is used. The expirement was done on a single node openshift cluster environment running within a VM. 
 ## Cluster environment
 We have a single node openshift cluster running within a QEMU/KVM VM. 
 ```
@@ -85,7 +85,7 @@ curling the service endpoint
 curl -L -k httpd-ex-git-demo-sno.apps.sno.example.com
 sno http test page
 ```
-We have many URLs pointing to the same IP address, so how does the incoming/outgoing request know where the packets should be sent to? NAT is not applicable here since all URLs sharing the same IP address on port 80. By looking inside of the SNO node (VM), haproxy is listening all avaialble IPv4 address on port 80. 
+We have many URLs pointing to the same IP address, so how does the incoming/outgoing request know where the packets should be sent to? NAT is not applicable here since all URLs sharing the same IP address on port 80. By looking inside of the SNO node (VM), haproxy is listening all avaialble IPv4 address on port 80. See an article on [haproxy loadbalancing](https://www.digitalocean.com/community/tutorials/an-introduction-to-haproxy-and-load-balancing-concepts)
 
 ```
 netstat -lntp | grep :80
@@ -143,12 +143,12 @@ Events:            <none>
 ```
 This yaml tells us the service port to pod port mapping which are 8080 -> 8080 and 8443 -> 8443. The end point which is the pod IP is assigned as 10.128.0.81. Here is when OVN takes into play, making all the port mapping and request forwarding possible.
 
-Let's take a look at OVN pods.
+Let's take a look at OVN pods. Since it's a single node cluster, both the ovn control plane and the node daemon are running on the same node. Note that, both pods are assigned with the IP address of 192.168.122.237. 
 ```
-oc get pod -n openshift-ovn-kubernetes
-NAME                                     READY   STATUS    RESTARTS   AGE
-ovnkube-control-plane-78b4b5979b-9lxlw   2/2     Running   2          2d2h
-ovnkube-node-j48k2                       8/8     Running   8          2d2h
+oc get pod -o wide -n openshift-ovn-kubernetes
+NAME                                     READY   STATUS    RESTARTS   AGE   IP                NODE                NOMINATED NODE   READINESS GATES
+ovnkube-control-plane-78b4b5979b-9lxlw   2/2     Running   4          23d   192.168.122.237   52-54-00-a7-93-9c   <none>           <none>
+ovnkube-node-j48k2                       8/8     Running   18         23d   192.168.122.237   52-54-00-a7-93-9c   <none>           <none>
 ```
 
 By looking at the load balancing list, we can see that service IP 172.30.95.17 is mapped to 10.128.0.81 on port 8080 and 8443. Since our demo project has only pod pod deployment, we are only seeing the loadbalaner mapping to a single IP address.

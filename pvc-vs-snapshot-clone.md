@@ -1,7 +1,7 @@
 Understanding the difference pvc/snapshot clone in ceph 
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-20 15:03 PM
+**Last Updated:** 2024-06-25 13:00 PM
 
 ## Introduction
 ceph has been a black box from the view point of CNV and cloning a volume via pvc can be quite different compared to cloning from a snapshot. I took some time by looking into what's happening within the ceph backend when PVC/snapshot cloning happens and highlight some of the interesting and important differences that are relavant to CNV VM performance and scale. 
@@ -239,7 +239,7 @@ Then I created 496 snapshot clones, the storage ultilization seems to stays the 
  ceph df | grep ocs-storagecluster-cephblockpool
 ocs-storagecluster-cephblockpool                        2  256   19 GiB    6.63k   56 GiB   0.09     21 TiB
 
-``
+```
 Let's try a snapshot clone of 512, the storage ultilization is still the same, cloning process was fairly quickly, this makes sense since it was just copying references:
 ```
 sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool 
@@ -256,5 +256,130 @@ With snapshot clone of 1024, storage ultilization stays the same, looks like the
 sh-5.1$ ceph df | grep ocs-storagecluster-cephblockpool 
 ocs-storagecluster-cephblockpool                        2  256   19 GiB    9.30k   56 GiB   0.09     21 TiB
 ```
+With snapshot clone of 2048, storage ultilization stays nearly the same:
+```
+ocs-storagecluster-cephblockpool                        2  256   19 GiB   12.39k   56 GiB   0.09     21 TiB
+```
+This seems to suggest flattening is not happening even with 2048 clones, note that VMs are not running. The cloning process was very fast since we are just copying the references pointing at the original image. The tradeoff here might be that thousands of VMs are depending on a single snapshot which might cause a problem if that image is somewhat corrupted. However, ceph is doing 3-way replication, this should minimize the chance of that happening, also we probably need to take some backups in serveral different locations.
 
+Let's actually boot all the VMs up and see the storage ultilization. Before booting up all the VMs, 
+```
+ceph df | grep ocs-storagecluster-cephblockpool
+ocs-storagecluster-cephblockpool                        2  256   19 GiB   13.50k   58 GiB   0.09     21 TiB 
+``
+After booting up
+```
+ceph df | grep ocs-storagecluster-cephblockpool
+ocs-storagecluster-cephblockpool                        2  256  811 GiB  217.38k  2.4 TiB   3.73     20 TiB
+```
+The difference is 811-19=792G, 792*1024/2048=396 mb, that's about 396mb of space per VM.
+
+### Looking at the object level
+We looked at a few aspects of volume cloning at the rbd device level, it's actually more intresting to see what objects are being created etc. To make things easier, I deleted all the clones and only left on VM. Let's examine it in details.
+
+Here we have a VM volume that is cloned from a snapshot. As we can see the parent tag is there, pointing back to csi-snap-2a6d258d-c6c0-43d7-b6c9-f5876bea2fc8.
+```
+sh-5.1$ rbd info ocs-storagecluster-cephblockpool/csi-vol-815d11bd-d9ed-4e70-b1be-dd24c282b039
+rbd image 'csi-vol-815d11bd-d9ed-4e70-b1be-dd24c282b039':
+        size 21 GiB in 5376 objects
+        order 22 (4 MiB objects)
+        snapshot_count: 0
+        id: 14f13baa2801a3
+        block_name_prefix: rbd_data.14f13baa2801a3
+        format: 2
+        features: layering, exclusive-lock, object-map, fast-diff, deep-flatten, operations
+        op_features: clone-child
+        flags: 
+        create_timestamp: Fri Jun 21 05:19:46 2024
+        access_timestamp: Fri Jun 21 05:19:46 2024
+        modify_timestamp: Fri Jun 21 05:19:46 2024
+        parent: ocs-storagecluster-cephblockpool/csi-snap-2a6d258d-c6c0-43d7-b6c9-f5876bea2fc8@csi-snap-2a6d258d-c6c0-43d7-b6c9-f5876bea2fc8
+        overlap: 21 GiB
+```
+
+Let's take a look at the meta data of the snapshot:
+```
+sh-5.1$ rbd info ocs-storagecluster-cephblockpool/csi-snap-2a6d258d-c6c0-43d7-b6c9-f5876bea2fc8
+rbd image 'csi-snap-2a6d258d-c6c0-43d7-b6c9-f5876bea2fc8':
+        size 21 GiB in 5376 objects
+        order 22 (4 MiB objects)
+        snapshot_count: 1
+        id: cee66f78db82e
+        block_name_prefix: rbd_data.cee66f78db82e
+        format: 2
+        features: layering, deep-flatten, operations
+        op_features: clone-parent, clone-child
+        flags: 
+        create_timestamp: Thu Jun 20 00:42:24 2024
+        access_timestamp: Thu Jun 20 00:42:24 2024
+        modify_timestamp: Thu Jun 20 00:42:24 2024
+        parent: ocs-storagecluster-cephblockpool/csi-vol-40f90f11-b952-4f21-bc8f-1668ed5d2e10@9e99c290-16ed-4a80-bba1-ff81c3ae78e1
+        overlap: 21 GiB
+```
+And this snapshot is pointing back to the volume that's associated with the qcow image we imported into the storage cluster: csi-vol-40f90f11-b952-4f21-bc8f-1668ed5d2e10, and this volume has no parent as one would expect.
+```
+rbd info ocs-storagecluster-cephblockpool/csi-vol-40f90f11-b952-4f21-bc8f-1668ed5d2e10 
+rbd image 'csi-vol-40f90f11-b952-4f21-bc8f-1668ed5d2e10':
+        size 21 GiB in 5376 objects
+        order 22 (4 MiB objects)
+        snapshot_count: 1
+        id: 14f13bb1ec5e7d
+        block_name_prefix: rbd_data.14f13bb1ec5e7d
+        format: 2
+        features: layering, exclusive-lock, object-map, fast-diff, deep-flatten, operations
+        op_features: clone-parent, snap-trash
+        flags: 
+        create_timestamp: Tue Jun 18 06:15:19 2024
+        access_timestamp: Thu Jun 20 01:08:53 2024
+        modify_timestamp: Tue Jun 18 06:15:19 2024
+```
+We can then examine objects assoicated with all the volumes listed above and the key infomation is the block name prefix that's shown in the meta data. Here is the snippet of all the objects:
+
+```
+rados -p ocs-storagecluster-cephblockpool ls | grep 14f13bb1ec5e7d | head                                                                                                                                                                             
+rbd_data.14f13bb1ec5e7d.0000000000000c38
+rbd_data.14f13bb1ec5e7d.0000000000001063
+rbd_data.14f13bb1ec5e7d.00000000000003be
+rbd_data.14f13bb1ec5e7d.0000000000000bdb
+rbd_data.14f13bb1ec5e7d.00000000000007c6
+rbd_data.14f13bb1ec5e7d.00000000000000a6
+rbd_data.14f13bb1ec5e7d.0000000000000398
+rbd_data.14f13bb1ec5e7d.000000000000101f
+rbd_data.14f13bb1ec5e7d.00000000000007f8
+rbd_data.14f13bb1ec5e7d.0000000000000407
+```
+There are three parts here in each object, rbd_data indicates that the objects are related to RADOS Block Device data. and 14f13bb1ec5e7d is the volume identifier. 0000000000000c38 etc are the object indentifier and each object id represnets a chunk or segmnet of the data stored in the storage cluster.
+
+In total we see a total of 706 objects for our original base qcow image.
+```
+rados -p ocs-storagecluster-cephblockpool ls | grep 14f13bb1ec5e7d | wc -l
+706
+```
+
+And for the golden snapshot, there is only one header object being created:
+
+```
+rados -p ocs-storagecluster-cephblockpool ls | grep cee66f78db82e         
+rbd_header.cee66f78db82e
+``
+
+For the cloned VM volume, there are only one header object and one object map. This explains why cloning was so fast since we are just copying some references and metadata.
+
+```
+rados -p ocs-storagecluster-cephblockpool ls | grep 14f13baa2801a3        
+rbd_object_map.14f13baa2801a3
+rbd_header.14f13baa2801a3
+```
+Let's actually start the VM and count the objects again, it seem like after we started the VM, 81-2=79 objects gets copied. That's about 10% of the base image.
+
+```
+rados -p ocs-storagecluster-cephblockpool ls | grep 14f13baa2801a3 | wc -l
+81
+```
+Let's pick a random object and check its meta data:
+```
+rados -p ocs-storagecluster-cephblockpool stat rbd_data.14f13baa2801a3.00000000000007cd
+ocs-storagecluster-cephblockpool/rbd_data.14f13baa2801a3.00000000000007cd mtime 2024-06-24T08:32:45.000000+0000, size 4194304
+```
+The size of a single object is 4194304 bytes, 706 of them adds up to the similar volume size we retrived in previous sections.
 
