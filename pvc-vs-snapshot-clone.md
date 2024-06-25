@@ -1,7 +1,7 @@
 Understanding the difference pvc/snapshot clone in ceph 
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-25 13:00 PM
+**Last Updated:** 2024-06-25 13:02 PM
 
 ## Introduction
 ceph has been a black box from the view point of CNV and cloning a volume via pvc can be quite different compared to cloning from a snapshot. I took some time by looking into what's happening within the ceph backend when PVC/snapshot cloning happens and highlight some of the interesting and important differences that are relavant to CNV VM performance and scale. 
@@ -266,7 +266,7 @@ Let's actually boot all the VMs up and see the storage ultilization. Before boot
 ```
 ceph df | grep ocs-storagecluster-cephblockpool
 ocs-storagecluster-cephblockpool                        2  256   19 GiB   13.50k   58 GiB   0.09     21 TiB 
-``
+```
 After booting up
 ```
 ceph df | grep ocs-storagecluster-cephblockpool
@@ -296,7 +296,6 @@ rbd image 'csi-vol-815d11bd-d9ed-4e70-b1be-dd24c282b039':
         parent: ocs-storagecluster-cephblockpool/csi-snap-2a6d258d-c6c0-43d7-b6c9-f5876bea2fc8@csi-snap-2a6d258d-c6c0-43d7-b6c9-f5876bea2fc8
         overlap: 21 GiB
 ```
-
 Let's take a look at the meta data of the snapshot:
 ```
 sh-5.1$ rbd info ocs-storagecluster-cephblockpool/csi-snap-2a6d258d-c6c0-43d7-b6c9-f5876bea2fc8
