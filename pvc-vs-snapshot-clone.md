@@ -1,7 +1,7 @@
 Understanding the difference pvc/snapshot clone in ceph 
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-25 13:02 PM
+**Last Updated:** 2024-06-25 13:04 PM
 
 ## Introduction
 ceph has been a black box from the view point of CNV and cloning a volume via pvc can be quite different compared to cloning from a snapshot. I took some time by looking into what's happening within the ceph backend when PVC/snapshot cloning happens and highlight some of the interesting and important differences that are relavant to CNV VM performance and scale. 
@@ -360,7 +360,7 @@ And for the golden snapshot, there is only one header object being created:
 ```
 rados -p ocs-storagecluster-cephblockpool ls | grep cee66f78db82e         
 rbd_header.cee66f78db82e
-``
+```
 
 For the cloned VM volume, there are only one header object and one object map. This explains why cloning was so fast since we are just copying some references and metadata.
 

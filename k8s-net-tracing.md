@@ -1,7 +1,7 @@
 A close look at k8s networking model
 ===========================================================
 ## Last Updated
-**Last Updated:** 2024-06-25 13:02 PM
+**Last Updated:** 2024-06-25 13:04 PM
 
 ## Introduction
 This document covers the detailed data flow from a service endpoint request down to the pod network interface. It includes the detailed tracing of how packet flows within k8s environment where OVN is used. The expirement was done on a single node openshift cluster environment running within a VM. 
